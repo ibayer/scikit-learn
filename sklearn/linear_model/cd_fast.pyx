@@ -163,6 +163,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef np.ndarray[DOUBLE, ndim=1] norm_cols_X = (X**2).sum(axis=0)
     cdef double tmp
     cdef double tmp_gradient
+    cdef int i_tmp
+    cdef double tmp_swap
     cdef double w_ii
     cdef double d_w_max
     cdef double w_max
@@ -174,12 +176,13 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef unsigned int org_pos
     cdef unsigned int n_iter
     cdef bint use_cache = False
-    cdef bint initialize_cache = False
+
     cdef bint search_missing_feature = False
-    cdef bint over_all = True
-    cdef is_cached
+
+    cdef bint is_cached
+    cdef bint is_active
     cdef int n_active_features = 0
-    cdef int n_cached_features
+    cdef int n_cached_features = 0
 
     if l1_reg == 0:
         warnings.warn("Coordinate descent with l2_reg=0 may lead to unexpected"
@@ -197,8 +200,10 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] active_set = np.arange(n_features, dtype=np.int32)
+    cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] iter_range = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product
+    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product = \
+                    np.zeros(shape=(n_features, n_active_features), dtype=np.float64, order='C')
     cdef np.ndarray[DOUBLE, ndim=1] tmp_feature_inner_product = np.zeros(n_features, dtype=np.float64)
 
     cdef int row_major = 101
@@ -206,92 +211,103 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef int no_trans = 111
     cdef int trans = 112
 
+    n_active_features = len(active_set)
+    cdef bint initialize_active_set = True
+    cdef bint over_all = True
+
     for n_iter in range(max_iter):
         w_max = 0.0
         d_w_max = 0.0
 
-        n_active_features = len(active_set)
+        if over_all:
+            iter_range = np.arange(n_features, dtype=np.int32)
+        else:
+            iter_range = np.arange(n_active_features, dtype=np.int32)
 
         # black magic conditions
-        if n_iter > 2 and n_active_features > 2:
-            active_set = np.nonzero(w)[0]
-            iter_range = active_set
-            n_active_features = len(active_set)
+#        if n_iter > 2 and n_active_features > 2:
+#            active_set = np.nonzero(w)[0]
+#            iter_range = active_set
+#            n_active_features = len(active_set)
 
         # check if memory is now sufficient for caching
-        if not use_cache:
-            if n_active_features ** 2 <= memory_limit:
-                nz_index = active_set
-                iter_range = np.arange(n_active_features, dtype=np.int32)
-                feature_inner_product = \
-                    np.zeros(shape=(n_features, n_active_features),
-                             dtype=np.float64, order='C')
-                # resize
-                map_to_ac, map_back = create_mapping(n_features, nz_index)
-                w = w[map_to_ac]
-                gradient = gradient[map_to_ac]
-                n_cached_features = n_active_features
-                use_cache = True
-                initialize_cache = True
-                over_all = False
-
-        if search_missing_feature:
-            iter_range = np.arange(n_features, dtype=np.int32)
+#        if not use_cache and not over_all:
+#            if n_active_features ** 2 <= memory_limit:
+#                #print "n_iter " + str(n_iter)
+#                nz_index = active_set
+#                iter_range = np.arange(n_active_features, dtype=np.int32)
+#                feature_inner_product = \
+#                    np.zeros(shape=(n_features, n_active_features),
+#                             dtype=np.float64, order='C')
+#                # resize
+#                map_to_ac, map_back = create_mapping(n_features, nz_index)
+#                w = w[map_to_ac]
+#                gradient = gradient[map_to_ac]
+#                n_cached_features = n_active_features
+#                use_cache = True
+#                initialize_cache = True
+#                over_all = False
+#
+#        if search_missing_feature:
+#            iter_range = np.arange(n_features, dtype=np.int32)
 
         for ii in iter_range:  # Loop over coordinates
-
-            if norm_cols_X[map_back[ii]] == 0.0:
-                continue
+#            print "ii: " + str(ii)
+#            if norm_cols_X[map_back[ii]] == 0.0:
+#                continue
+#
+#            if search_missing_feature:
+#                m_pos = map_to_ac[ii]
+#            else:
+#                m_pos = ii
+#
+#            if over_all:
+#                org_pos = ii
+#            else:
+#                org_pos = map_to_ac[ii]
 
             w_ii = w[ii]  # Store previous value
+            org_pos = active_set[ii]
+#            org_pos = ii
 
-            if use_cache:
-                m_pos = map_to_ac[ii]
-            else:
-                m_pos = ii
-
-            if over_all:
-                org_pos = ii
-            else:
-                org_pos = map_to_ac[ii]
             # if feature is not located at the beginning of the array it's
             # not cached
-            is_cached = m_pos < n_cached_features
+            is_cached = ii < n_cached_features
+            is_active = ii < n_active_features
 
             # initial calculation
-            if initialize_cache:
-                #tmp_feature_inner_product = np.dot(X[:, nz_index[ii]], X)
-                dgemv(col_major, trans, n_samples, n_features,
-                          1, &X[0,0], n_samples, &X[0, org_pos], 
-                          1, 0, &tmp_feature_inner_product[0], 1)
-                feature_inner_product[:, ii] = tmp_feature_inner_product[map_to_ac]
-                #gradient[ii] = Xy[nz_index[ii]] - \
-                #        np.dot(feature_inner_product[:, ii], w)
-                gradient[ii] = Xy[org_pos] - \
-                        ddot(n_active_features, &feature_inner_product[0,ii], n_active_features, &w[0], 1)
+#            if initialize_cache:
+#                #tmp_feature_inner_product = np.dot(X[:, nz_index[ii]], X)
+#                dgemv(col_major, trans, n_samples, n_features,
+#                          1, &X[0,0], n_samples, &X[0, org_pos], 
+#                          1, 0, &tmp_feature_inner_product[0], 1)
+#                feature_inner_product[:, ii] = tmp_feature_inner_product[map_to_ac]
+#                #gradient[ii] = Xy[nz_index[ii]] - \
+#                #        np.dot(feature_inner_product[:, ii], w)
+#                gradient[ii] = Xy[org_pos] - \
+#                        ddot(n_active_features, &feature_inner_product[0,ii], n_active_features, &w[0], 1)
 
-            if not use_cache:
+            if True:#not is_cached:
                 #tmp_feature_inner_product = np.dot(X[:, ii], X)
                 #gradient[ii] = Xy[ii] - \
                 #         np.dot(tmp_feature_inner_product, w)
                 dgemv(col_major, trans, n_samples, n_features,
-                          1, &X[0,0], n_samples, &X[0,org_pos], 
+                          1, &X[0,0], n_samples, &X[0,org_pos],
                           1, 0, &tmp_feature_inner_product[0], 1)
 
-                gradient[m_pos] = Xy[org_pos] - \
+                tmp_gradient = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
-            if search_missing_feature:
-                if not is_cached:
-                    dgemv(col_major, trans, n_samples, n_features,
-                              1, &X[0,0], n_samples, &X[0,org_pos], 
-                              1, 0, &tmp_feature_inner_product[0], 1)
+#            if search_missing_feature:
+#                if not is_cached:
+#                    dgemv(col_major, trans, n_samples, n_features,
+#                              1, &X[0,0], n_samples, &X[0,ii], 
+#                              1, 0, &tmp_feature_inner_product[0], 1)
+#
+#                    gradient[m_pos] = Xy[org_pos] - \
+#                            ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
-                    gradient[m_pos] = Xy[org_pos] - \
-                            ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
-                tmp = gradient[m_pos] + w_ii * norm_cols_X[org_pos]
-            else:
-                tmp = gradient[ii] + w_ii * norm_cols_X[org_pos]
+            tmp = tmp_gradient + w_ii * norm_cols_X[org_pos]
 
             if positive and tmp < 0:
                 w[ii] = 0.0
@@ -301,15 +317,16 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
             # update gradients, if w changed
             if w_ii != w[ii]:
-                if search_missing_feature:
-                    # add feature to the active-set that improved the objective 
-                    #  but has not bin in the set before
-                    pass
+
                 if use_cache:
+                    pass
                     # gradient -= feature_inner_product[ii, :] * \
-                    #                                    (w[ii] - w_ii)
-                    daxpy(n_cached_features, -(w[ii] - w_ii),
-                          &feature_inner_product[ii, 0], 1, &gradient[0], 1)
+#                    #                                    (w[ii] - w_ii)
+#                    daxpy(n_cached_features, -(w[ii] - w_ii),
+#                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
+                if not is_active:
+                    pass
+
 
             # update the maximum absolute coefficient update
             d_w_ii = fabs(w[ii] - w_ii)
@@ -319,24 +336,49 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
             if fabs(w[ii]) > w_max:
                 w_max = fabs(w[ii])
 
+            # remove from active_set
+            if w[ii] == 0:
+                if initialize_active_set:
+                    print "davor active_set" + str(init_active_set)
+                    print "remove pos: " + str(ii)
+                    print " org_pos: " + str(org_pos)
+                    print "only active" + str(init_active_set[0:n_active_features])
+                    print  "n_active_features=" + str(n_active_features)
+                    i_tmp = init_active_set[ii]
+                    init_active_set[ii] = init_active_set[n_active_features - 1]
+                    init_active_set[n_active_features - 1] = i_tmp
+                    n_active_features -= 1
+                    print "danach active_set" + str(init_active_set)
+                elif not over_all:
+                    i_tmp = active_set[ii]
+                    active_set[ii] = active_set[n_active_features - 1]
+                    active_set[n_active_features - 1] = i_tmp
+                    n_active_features -= 1
+
         if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
             # the biggest coordinate update of this iteration was smaller than
             # the tolerance: check the duality gap as ultimate stopping
             # criterion
-            if use_cache:
-                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
-            else:
-                gap = calculate_gap(w, l1_reg, l2_reg, X, y, positive)
+#            if use_cache:
+#                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
+#            else:
+            gap = calculate_gap(w, l1_reg, l2_reg, X, y, positive)
 
             if gap < tol:
                 # return if we reached desired tolerance
                 break
             else:
                 print "dual gap check failed"
-                search_missing_feature = True
+#                search_missing_feature = True
                 over_all = True
 
-        initialize_cache = False
+        if initialize_active_set:
+            active_set = init_active_set
+            initialize_active_set = False
+            over_all = False
+#        if over_all:
+#            iter_range = np.nonzero(w)[0]
+
 
     if use_cache:
         w = w[map_back]
