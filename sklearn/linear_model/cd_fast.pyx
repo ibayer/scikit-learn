@@ -220,8 +220,10 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
         d_w_max = 0.0
 
         if over_all:
-            iter_range = np.arange(n_features, dtype=np.int32)
+            print "-- iter over_all"
+            iter_range = np.arange(n_features - 1, -1, -1, dtype=np.int32)
         else:
+            print "-- iter active_features"
             iter_range = np.arange(n_active_features, dtype=np.int32)
 
         # black magic conditions
@@ -294,7 +296,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 dgemv(col_major, trans, n_samples, n_features,
                           1, &X[0,0], n_samples, &X[0,org_pos],
                           1, 0, &tmp_feature_inner_product[0], 1)
-
+                tmp_feature_inner_product = tmp_feature_inner_product[active_set]
                 tmp_gradient = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
@@ -324,8 +326,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #                    #                                    (w[ii] - w_ii)
 #                    daxpy(n_cached_features, -(w[ii] - w_ii),
 #                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
-                if not is_active:
-                    pass
+
 
 
             # update the maximum absolute coefficient update
@@ -336,24 +337,42 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
             if fabs(w[ii]) > w_max:
                 w_max = fabs(w[ii])
 
+            # add to active-set
+            if w[ii] != 0 and not is_active:
+                print "davor active_set" + str(active_set)
+                print "add pos: " + str(ii)
+                print " org_pos: " + str(org_pos)
+                print "only active" + str(active_set[0:n_active_features])
+                print  "n_active_features=" + str(n_active_features)
+                i_tmp = active_set[n_active_features]
+                active_set[n_active_features] = active_set[ii]
+                active_set[ii] = i_tmp
+
+                tmp = w[n_active_features]
+                w[n_active_features] = w[ii]
+                w[ii] = tmp
+
+                n_active_features += 1
+                print "danach active_set" + str(active_set)
+                over_all = False
+
             # remove from active_set
-            if w[ii] == 0:
-                if initialize_active_set:
-                    print "davor active_set" + str(init_active_set)
+            if w[ii] == 0 and is_active:
+                    print "davor active_set" + str(active_set)
                     print "remove pos: " + str(ii)
                     print " org_pos: " + str(org_pos)
-                    print "only active" + str(init_active_set[0:n_active_features])
+                    print "only active" + str(active_set[0:n_active_features])
                     print  "n_active_features=" + str(n_active_features)
-                    i_tmp = init_active_set[ii]
-                    init_active_set[ii] = init_active_set[n_active_features - 1]
-                    init_active_set[n_active_features - 1] = i_tmp
-                    n_active_features -= 1
-                    print "danach active_set" + str(init_active_set)
-                elif not over_all:
                     i_tmp = active_set[ii]
                     active_set[ii] = active_set[n_active_features - 1]
                     active_set[n_active_features - 1] = i_tmp
+
+                    w[ii] = w[n_active_features - 1]
+                    w[n_active_features - 1] = 0
+
                     n_active_features -= 1
+                    print "danach active_set" + str(active_set)
+
 
         if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
             # the biggest coordinate update of this iteration was smaller than
@@ -362,27 +381,20 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            if use_cache:
 #                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
 #            else:
-            gap = calculate_gap(w, l1_reg, l2_reg, X, y, positive)
+            gap = calculate_gap(w[active_set], l1_reg, l2_reg, X, y, positive)
 
             if gap < tol:
                 # return if we reached desired tolerance
                 break
             else:
-                print "dual gap check failed"
-#                search_missing_feature = True
+                print "dual gap check failed: " + str(gap)
+
                 over_all = True
-
-        if initialize_active_set:
-            active_set = init_active_set
-            initialize_active_set = False
+        if over_all and n_iter == 2:
             over_all = False
-#        if over_all:
-#            iter_range = np.nonzero(w)[0]
-
-
-    if use_cache:
-        w = w[map_back]
-    return w, gap, tol
+#    if use_cache:
+#        w = w[map_back]
+    return w[active_set], gap, tol
 
 
 @cython.boundscheck(False)
