@@ -177,7 +177,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef unsigned int n_iter
     cdef bint use_cache = False
 
-    cdef bint search_missing_feature = False
+#    cdef bint search_missing_feature = False
 
     cdef bint is_cached
     cdef bint is_active
@@ -195,15 +195,15 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     tol = tol * linalg.norm(y) ** 2
 
     cdef np.ndarray[DOUBLE, ndim=1] Xy = np.dot(X.T, y)
-    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
-    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
+#    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
+#    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
+#    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
+#    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] iter_range = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product = \
-                    np.zeros(shape=(n_features, n_active_features), dtype=np.float64, order='C')
+#    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product = \
+#                    np.zeros(shape=(n_features, n_active_features), dtype=np.float64, order='C')
     cdef np.ndarray[DOUBLE, ndim=1] tmp_feature_inner_product = np.zeros(n_features, dtype=np.float64)
 
     cdef int row_major = 101
@@ -212,7 +212,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef int trans = 112
 
     n_active_features = len(active_set)
-    cdef bint initialize_active_set = True
+#    cdef bint initialize_active_set = True
     cdef bint over_all = True
 
     for n_iter in range(max_iter):
@@ -222,9 +222,10 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
         if over_all:
             print "-- iter over_all"
             iter_range = np.arange(n_features - 1, -1, -1, dtype=np.int32)
+            over_all = False
         else:
             print "-- iter active_features"
-            iter_range = np.arange(n_active_features, dtype=np.int32)
+            iter_range = np.arange(n_active_features -1 , -1, -1, dtype=np.int32)
 
         # black magic conditions
 #        if n_iter > 2 and n_active_features > 2:
@@ -263,13 +264,15 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            else:
 #                m_pos = ii
 #
-#            if over_all:
-#                org_pos = ii
-#            else:
-#                org_pos = map_to_ac[ii]
+            if over_all:
+                org_pos = ii
+                m_pos = active_set[ii]
+            else:
+                org_pos = active_set[ii]
+                m_pos = ii
 
             w_ii = w[ii]  # Store previous value
-            org_pos = active_set[ii]
+#            org_pos = active_set[ii]
 #            org_pos = ii
 
             # if feature is not located at the beginning of the array it's
@@ -354,7 +357,6 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
                 n_active_features += 1
                 print "danach active_set" + str(active_set)
-                over_all = False
 
             # remove from active_set
             if w[ii] == 0 and is_active:
@@ -381,17 +383,17 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            if use_cache:
 #                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
 #            else:
-            gap = calculate_gap(w[active_set], l1_reg, l2_reg, X, y, positive)
+            w_tmp = w[active_set]
+            gap = calculate_gap(w_tmp, l1_reg, l2_reg, X, y, positive)
 
             if gap < tol:
                 # return if we reached desired tolerance
                 break
             else:
                 print "dual gap check failed: " + str(gap)
-
+                print w_tmp
                 over_all = True
-        if over_all and n_iter == 2:
-            over_all = False
+
 #    if use_cache:
 #        w = w[map_back]
     return w[active_set], gap, tol
