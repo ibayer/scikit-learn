@@ -197,7 +197,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef np.ndarray[DOUBLE, ndim=1] Xy = np.dot(X.T, y)
 #    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
 #    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
-#    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
+    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
@@ -211,7 +211,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef int no_trans = 111
     cdef int trans = 112
 
-    n_active_features = len(active_set)
+    n_active_features = 0#len(active_set)
 #    cdef bint initialize_active_set = True
     cdef bint over_all = True
 
@@ -221,11 +221,14 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
         if over_all:
             print "-- iter over_all"
-            iter_range = np.arange(n_features - 1, -1, -1, dtype=np.int32)
+#            iter_range = np.arange(n_features - 1, -1, -1, dtype=np.int32)
+            iter_range = np.arange(n_features, dtype=np.int32)
+
             over_all = False
         else:
             print "-- iter active_features"
-            iter_range = np.arange(n_active_features -1 , -1, -1, dtype=np.int32)
+#            iter_range = np.arange(n_active_features -1 , -1, -1, dtype=np.int32)
+            iter_range = np.arange(n_active_features, dtype=np.int32)
 
         # black magic conditions
 #        if n_iter > 2 and n_active_features > 2:
@@ -255,6 +258,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            iter_range = np.arange(n_features, dtype=np.int32)
 
         for ii in iter_range:  # Loop over coordinates
+            print "active_set: \n" + str(active_set)
+            print "w " + str(w)
 #            print "ii: " + str(ii)
 #            if norm_cols_X[map_back[ii]] == 0.0:
 #                continue
@@ -271,14 +276,14 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 org_pos = active_set[ii]
                 m_pos = ii
 
-            w_ii = w[ii]  # Store previous value
+            w_ii = w[m_pos]  # Store previous value
 #            org_pos = active_set[ii]
 #            org_pos = ii
 
             # if feature is not located at the beginning of the array it's
             # not cached
-            is_cached = ii < n_cached_features
-            is_active = ii < n_active_features
+            is_cached = m_pos < n_cached_features
+            is_active = m_pos < n_active_features
 
             # initial calculation
 #            if initialize_cache:
@@ -315,13 +320,13 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
             tmp = tmp_gradient + w_ii * norm_cols_X[org_pos]
 
             if positive and tmp < 0:
-                w[ii] = 0.0
+                w[m_pos] = 0.0
             else:
-                w[ii] = fsign(tmp) * fmax(fabs(tmp) - l1_reg, 0) \
+                w[m_pos] = fsign(tmp) * fmax(fabs(tmp) - l1_reg, 0) \
                     / (norm_cols_X[org_pos] + l2_reg)
 
             # update gradients, if w changed
-            if w_ii != w[ii]:
+            if w_ii != w[m_pos]:
 
                 if use_cache:
                     pass
@@ -333,47 +338,50 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
 
             # update the maximum absolute coefficient update
-            d_w_ii = fabs(w[ii] - w_ii)
+            d_w_ii = fabs(w[m_pos] - w_ii)
             if d_w_ii > d_w_max:
                 d_w_max = d_w_ii
 
-            if fabs(w[ii]) > w_max:
-                w_max = fabs(w[ii])
+            if fabs(w[m_pos]) > w_max:
+                w_max = fabs(w[m_pos])
 
             # add to active-set
-            if w[ii] != 0 and not is_active:
-                print "davor active_set" + str(active_set)
-                print "add pos: " + str(ii)
+            if w[m_pos] != 0 and not is_active:
+#                print "davor active_set" + str(active_set)
+                print "add pos: " + str(m_pos)
                 print " org_pos: " + str(org_pos)
-                print "only active" + str(active_set[0:n_active_features])
-                print  "n_active_features=" + str(n_active_features)
+                print "w " + str(w)
+#                print "only active" + str(active_set[0:n_active_features])
+#                print  "n_active_features=" + str(n_active_features)
                 i_tmp = active_set[n_active_features]
-                active_set[n_active_features] = active_set[ii]
-                active_set[ii] = i_tmp
+                active_set[n_active_features] = active_set[m_pos]
+                active_set[m_pos] = i_tmp
 
                 tmp = w[n_active_features]
-                w[n_active_features] = w[ii]
-                w[ii] = tmp
-
+                w[n_active_features] = w[m_pos]
+                w[m_pos] = tmp
+                print "w " + str(w)
                 n_active_features += 1
-                print "danach active_set" + str(active_set)
+
+#                print "danach active_set" + str(active_set)
 
             # remove from active_set
-            if w[ii] == 0 and is_active:
-                    print "davor active_set" + str(active_set)
-                    print "remove pos: " + str(ii)
+            if w[m_pos] == 0 and is_active:
+#                    print "davor active_set" + str(active_set)
+                    print "remove pos: " + str(m_pos)
                     print " org_pos: " + str(org_pos)
-                    print "only active" + str(active_set[0:n_active_features])
-                    print  "n_active_features=" + str(n_active_features)
-                    i_tmp = active_set[ii]
-                    active_set[ii] = active_set[n_active_features - 1]
+                    print "w " + str(w)
+#                    print "only active" + str(active_set[0:n_active_features])
+#                    print  "n_active_features=" + str(n_active_features)
+                    i_tmp = active_set[m_pos]
+                    active_set[m_pos] = active_set[n_active_features - 1]
                     active_set[n_active_features - 1] = i_tmp
 
-                    w[ii] = w[n_active_features - 1]
+                    w[m_pos] = w[n_active_features - 1]
                     w[n_active_features - 1] = 0
-
+                    print "w " + str(w)
                     n_active_features -= 1
-                    print "danach active_set" + str(active_set)
+#                    print "danach active_set" + str(active_set)
 
 
         if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
@@ -391,7 +399,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 break
             else:
                 print "dual gap check failed: " + str(gap)
-                print w_tmp
+                print "org \n" + str(w_tmp)
+                print "memory \n" + str(w)
                 over_all = True
 
 #    if use_cache:
