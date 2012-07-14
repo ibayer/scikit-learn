@@ -356,6 +356,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 i_tmp = active_set[n_active_features]
                 active_set[n_active_features] = active_set[m_pos]
                 active_set[m_pos] = i_tmp
+                map_back = np.argsort(active_set)
 
                 tmp = w[n_active_features]
                 w[n_active_features] = w[m_pos]
@@ -376,6 +377,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                     i_tmp = active_set[m_pos]
                     active_set[m_pos] = active_set[n_active_features - 1]
                     active_set[n_active_features - 1] = i_tmp
+                    map_back = np.argsort(active_set)
 
                     w[m_pos] = w[n_active_features - 1]
                     w[n_active_features - 1] = 0
@@ -391,7 +393,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            if use_cache:
 #                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
 #            else:
-            w_tmp = w[active_set]
+            w_tmp = w[map_back]
             gap = calculate_gap(w_tmp, l1_reg, l2_reg, X, y, positive)
 
             if gap < tol:
@@ -405,7 +407,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
 #    if use_cache:
 #        w = w[map_back]
-    return w[active_set], gap, tol
+    return w[map_back], gap, tol
 
 
 @cython.boundscheck(False)
