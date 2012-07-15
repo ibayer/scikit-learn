@@ -199,8 +199,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[INTEGER, ndim=1] active_set = np.arange(n_features, dtype=np.int32)
-    cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
+    cdef np.ndarray[INTEGER, ndim=1] track_pos = np.arange(n_features, dtype=np.int32)
+#    cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] iter_range = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product = \
 #                    np.zeros(shape=(n_features, n_active_features), dtype=np.float64, order='C')
@@ -271,9 +271,9 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #
             if over_all:
                 org_pos = ii
-                m_pos = active_set[ii]
+                m_pos = map_back[ii] # is this wrong?
             else:
-                org_pos = active_set[ii]
+                org_pos = track_pos[ii]
                 m_pos = ii
 
             w_ii = w[m_pos]  # Store previous value
@@ -304,7 +304,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 dgemv(col_major, trans, n_samples, n_features,
                           1, &X[0,0], n_samples, &X[0,org_pos],
                           1, 0, &tmp_feature_inner_product[0], 1)
-                tmp_feature_inner_product = tmp_feature_inner_product[active_set]
+                tmp_feature_inner_product = tmp_feature_inner_product[track_pos]
                 tmp_gradient = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
@@ -347,15 +347,15 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
             # add to active-set
             if w[m_pos] != 0 and not is_active:
-#                print "davor active_set" + str(active_set)
+#                print "davor track_pos" + str(active_set)
 #                print "add pos: " + str(m_pos)
 #                print " org_pos: " + str(org_pos)
 #                print "w " + str(w)
 #                print "only active" + str(active_set[0:n_active_features])
 #                print  "n_active_features=" + str(n_active_features)
-                i_tmp = active_set[n_active_features]
-                active_set[n_active_features] = active_set[m_pos]
-                active_set[m_pos] = i_tmp
+                i_tmp = track_pos[n_active_features]
+                track_pos[n_active_features] = track_pos[m_pos]
+                track_pos[m_pos] = i_tmp
 
                 tmp = w[n_active_features]
                 w[n_active_features] = w[m_pos]
@@ -373,9 +373,9 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #                    print "w " + str(w)
 #                    print "only active" + str(active_set[0:n_active_features])
 #                    print  "n_active_features=" + str(n_active_features)
-                    i_tmp = active_set[m_pos]
-                    active_set[m_pos] = active_set[n_active_features - 1]
-                    active_set[n_active_features - 1] = i_tmp
+                    i_tmp = track_pos[m_pos]
+                    track_pos[m_pos] = track_pos[n_active_features - 1]
+                    track_pos[n_active_features - 1] = i_tmp
 
 
                     w[m_pos] = w[n_active_features - 1]
@@ -392,8 +392,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            if use_cache:
 #                gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
 #            else:
-
-            gap = calculate_gap(w[np.argsort(active_set)], l1_reg, l2_reg, X, y, positive)
+            map_back = np.argsort(track_pos)
+            gap = calculate_gap(w[map_back], l1_reg, l2_reg, X, y, positive)
 
             if gap < tol:
                 # return if we reached desired tolerance
@@ -406,7 +406,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
 #    if use_cache:
 #        w = w[map_back]
-    return w[np.argsort(active_set)], gap, tol
+    return w[map_back], gap, tol
 
 
 @cython.boundscheck(False)
