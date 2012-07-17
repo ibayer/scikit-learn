@@ -211,6 +211,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef int trans = 112
 
     n_active_features = 0
+    n_cached_features = 0
     cdef bint over_all = True
 
     for n_iter in range(max_iter):
@@ -239,10 +240,14 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
             # if feature is not located at the beginning of the array it's
             # not cached
-            is_cached = False# = m_pos < n_cached_features
-            is_active = m_pos < n_active_features
+            if n_cached_features > 0 and m_pos < n_cached_features:
+                is_cached = True
+            else:
+                is_cached = False 
+#            is_cached = m_pos < n_cached_features
+            is_active = w_ii != 0#m_pos < n_active_features
 
-            if not is_cached:
+            if True:# is_cached:#not is_active or over_all:
                 #tmp_feature_inner_product = np.dot(X[:, ii], X)
                 #gradient[ii] = Xy[ii] - \
                 #         np.dot(tmp_feature_inner_product, w)
@@ -251,6 +256,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                           1, 0, &tmp_feature_inner_product[0], 1)
                 tmp_feature_inner_product = tmp_feature_inner_product[track_pos]
                 feature_inner_product[:, m_pos] = tmp_feature_inner_product
+                n_cached_features += 1
                 gradient[m_pos] = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
@@ -320,12 +326,11 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
             # update gradients, if w changed
             if w_ii != w[m_pos]:
 
-                if use_cache:
-                    pass
+                if n_active_features > 0:
                     # gradient -= feature_inner_product[ii, :] * \
 #                    #                                    (w[ii] - w_ii)
-#                    daxpy(n_cached_features, -(w[ii] - w_ii),
-#                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
+                    daxpy(n_active_features, -(w[ii] - w_ii),
+                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
 
             # update the maximum absolute coefficient update
             d_w_ii = fabs(w[m_pos] - w_ii)
