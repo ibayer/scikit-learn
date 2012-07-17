@@ -199,7 +199,11 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef np.ndarray[INTEGER, ndim=1] track_pos = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] iter_range = np.arange(n_features, dtype=np.int32)
 
+    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
     cdef np.ndarray[DOUBLE, ndim=1] tmp_feature_inner_product = np.zeros(n_features, dtype=np.float64)
+    cdef np.ndarray[DOUBLE, ndim=2] feature_inner_product = \
+                    np.zeros(shape=(n_features, n_features),
+                             dtype=np.float64, order='C')
 
     cdef int row_major = 101
     cdef int col_major = 102
@@ -235,10 +239,10 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
             # if feature is not located at the beginning of the array it's
             # not cached
-            is_cached = m_pos < n_cached_features
+            is_cached = False# = m_pos < n_cached_features
             is_active = m_pos < n_active_features
 
-            if True:#not is_cached:
+            if not is_cached:
                 #tmp_feature_inner_product = np.dot(X[:, ii], X)
                 #gradient[ii] = Xy[ii] - \
                 #         np.dot(tmp_feature_inner_product, w)
@@ -246,10 +250,11 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                           1, &X[0,0], n_samples, &X[0,org_pos],
                           1, 0, &tmp_feature_inner_product[0], 1)
                 tmp_feature_inner_product = tmp_feature_inner_product[track_pos]
-                tmp_gradient = Xy[org_pos] - \
+                feature_inner_product[:, m_pos] = tmp_feature_inner_product
+                gradient[m_pos] = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
-            tmp = tmp_gradient + w_ii * norm_cols_X[org_pos]
+            tmp = gradient[m_pos] + w_ii * norm_cols_X[org_pos]
 
             if positive and tmp < 0:
                 w[m_pos] = 0.0
@@ -272,7 +277,16 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 tmp = w[n_active_features]
                 w[n_active_features] = w[m_pos]
                 w[m_pos] = tmp
-#                print "w " + str(w)
+
+                tmp = gradient[n_active_features]
+                gradient[n_active_features] = gradient[m_pos]
+                gradient[m_pos] = tmp
+
+                tmp_feature_inner_product = np.copy(feature_inner_product[:, n_active_features])
+                feature_inner_product[:, n_active_features] = feature_inner_product[:, m_pos]
+                feature_inner_product[:, m_pos] = tmp_feature_inner_product
+
+
                 n_active_features += 1
 
 
@@ -291,9 +305,17 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
                     w[m_pos] = w[n_active_features - 1]
                     w[n_active_features - 1] = 0
-#                    print "w " + str(w)
+
+                    tmp = gradient[m_pos]
+                    gradient[m_pos] = gradient[n_active_features -1]
+                    gradient[n_active_features -1] = tmp
+
+                    tmp_feature_inner_product = np.copy(feature_inner_product[:, m_pos])
+                    feature_inner_product[:, m_pos] = feature_inner_product[:, n_active_features -1]
+                    feature_inner_product[:, n_active_features -1] = tmp_feature_inner_product
+
                     n_active_features -= 1
-#                    print "danach active_set" + str(active_set)
+
 
             # update gradients, if w changed
             if w_ii != w[m_pos]:
