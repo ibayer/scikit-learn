@@ -195,15 +195,10 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     tol = tol * linalg.norm(y) ** 2
 
     cdef np.ndarray[DOUBLE, ndim=1] Xy = np.dot(X.T, y)
-#    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
-#    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
-#    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] track_pos = np.arange(n_features, dtype=np.int32)
-#    cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] iter_range = np.arange(n_features, dtype=np.int32)
-#    cdef np.ndarray[DOUBLE, ndim=2, mode='c'] feature_inner_product = \
-#                    np.zeros(shape=(n_features, n_active_features), dtype=np.float64, order='C')
+
     cdef np.ndarray[DOUBLE, ndim=1] tmp_feature_inner_product = np.zeros(n_features, dtype=np.float64)
 
     cdef int row_major = 101
@@ -211,8 +206,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef int no_trans = 111
     cdef int trans = 112
 
-    n_active_features = 0#len(active_set)
-#    cdef bint initialize_active_set = True
+    n_active_features = 0
     cdef bint over_all = True
 
     for n_iter in range(max_iter):
@@ -221,13 +215,11 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
         if over_all:
             print "-- iter over_all"
-#            iter_range = np.arange(n_features - 1, -1, -1, dtype=np.int32)
             iter_range = np.arange(n_features, dtype=np.int32)
 
             over_all = False
         else:
             print "-- iter active_features"
-#            iter_range = np.arange(n_active_features -1 , -1, -1, dtype=np.int32)
             iter_range = np.arange(n_active_features, dtype=np.int32)
 
         for ii in iter_range:  # Loop over coordinates
@@ -283,7 +275,6 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #                print "w " + str(w)
                 n_active_features += 1
 
-#                print "danach active_set" + str(active_set)
 
             # remove from active_set
             if w[m_pos] == 0 and is_active:
