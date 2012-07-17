@@ -197,7 +197,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
     cdef np.ndarray[DOUBLE, ndim=1] Xy = np.dot(X.T, y)
 #    cdef np.ndarray[DOUBLE, ndim=1] gradient = np.zeros(n_features, dtype=np.float64)
 #    cdef np.ndarray[INTEGER, ndim=1] nz_index = np.arange(n_features, dtype=np.int32)
-#    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
+    cdef np.ndarray[INTEGER, ndim=1] map_back = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[INTEGER, ndim=1] map_to_ac = np.arange(n_features, dtype=np.int32)
     cdef np.ndarray[INTEGER, ndim=1] track_pos = np.arange(n_features, dtype=np.int32)
 #    cdef np.ndarray[INTEGER, ndim=1] init_active_set = np.arange(n_features, dtype=np.int32)
@@ -230,45 +230,8 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            iter_range = np.arange(n_active_features -1 , -1, -1, dtype=np.int32)
             iter_range = np.arange(n_active_features, dtype=np.int32)
 
-        # black magic conditions
-#        if n_iter > 2 and n_active_features > 2:
-#            active_set = np.nonzero(w)[0]
-#            iter_range = active_set
-#            n_active_features = len(active_set)
-
-        # check if memory is now sufficient for caching
-#        if not use_cache and not over_all:
-#            if n_active_features ** 2 <= memory_limit:
-#                #print "n_iter " + str(n_iter)
-#                nz_index = active_set
-#                iter_range = np.arange(n_active_features, dtype=np.int32)
-#                feature_inner_product = \
-#                    np.zeros(shape=(n_features, n_active_features),
-#                             dtype=np.float64, order='C')
-#                # resize
-#                map_to_ac, map_back = create_mapping(n_features, nz_index)
-#                w = w[map_to_ac]
-#                gradient = gradient[map_to_ac]
-#                n_cached_features = n_active_features
-#                use_cache = True
-#                initialize_cache = True
-#                over_all = False
-#
-#        if search_missing_feature:
-#            iter_range = np.arange(n_features, dtype=np.int32)
-
         for ii in iter_range:  # Loop over coordinates
-#            print "active_set: \n" + str(active_set)
-#            print "w " + str(w)
-#            print "ii: " + str(ii)
-#            if norm_cols_X[map_back[ii]] == 0.0:
-#                continue
-#
-#            if search_missing_feature:
-#                m_pos = map_to_ac[ii]
-#            else:
-#                m_pos = ii
-#
+
             if over_all:
                 org_pos = ii
                 m_pos = map_back[ii] # is this wrong?
@@ -277,25 +240,11 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 m_pos = ii
 
             w_ii = w[m_pos]  # Store previous value
-#            org_pos = active_set[ii]
-#            org_pos = ii
 
             # if feature is not located at the beginning of the array it's
             # not cached
             is_cached = m_pos < n_cached_features
             is_active = m_pos < n_active_features
-
-            # initial calculation
-#            if initialize_cache:
-#                #tmp_feature_inner_product = np.dot(X[:, nz_index[ii]], X)
-#                dgemv(col_major, trans, n_samples, n_features,
-#                          1, &X[0,0], n_samples, &X[0, org_pos], 
-#                          1, 0, &tmp_feature_inner_product[0], 1)
-#                feature_inner_product[:, ii] = tmp_feature_inner_product[map_to_ac]
-#                #gradient[ii] = Xy[nz_index[ii]] - \
-#                #        np.dot(feature_inner_product[:, ii], w)
-#                gradient[ii] = Xy[org_pos] - \
-#                        ddot(n_active_features, &feature_inner_product[0,ii], n_active_features, &w[0], 1)
 
             if True:#not is_cached:
                 #tmp_feature_inner_product = np.dot(X[:, ii], X)
@@ -308,15 +257,6 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 tmp_gradient = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
-#            if search_missing_feature:
-#                if not is_cached:
-#                    dgemv(col_major, trans, n_samples, n_features,
-#                              1, &X[0,0], n_samples, &X[0,ii], 
-#                              1, 0, &tmp_feature_inner_product[0], 1)
-#
-#                    gradient[m_pos] = Xy[org_pos] - \
-#                            ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
-
             tmp = tmp_gradient + w_ii * norm_cols_X[org_pos]
 
             if positive and tmp < 0:
@@ -324,26 +264,6 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
             else:
                 w[m_pos] = fsign(tmp) * fmax(fabs(tmp) - l1_reg, 0) \
                     / (norm_cols_X[org_pos] + l2_reg)
-
-            # update gradients, if w changed
-            if w_ii != w[m_pos]:
-
-                if use_cache:
-                    pass
-                    # gradient -= feature_inner_product[ii, :] * \
-#                    #                                    (w[ii] - w_ii)
-#                    daxpy(n_cached_features, -(w[ii] - w_ii),
-#                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
-
-
-
-            # update the maximum absolute coefficient update
-            d_w_ii = fabs(w[m_pos] - w_ii)
-            if d_w_ii > d_w_max:
-                d_w_max = d_w_ii
-
-            if fabs(w[m_pos]) > w_max:
-                w_max = fabs(w[m_pos])
 
             # add to active-set
             if w[m_pos] != 0 and not is_active:
@@ -383,6 +303,24 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #                    print "w " + str(w)
                     n_active_features -= 1
 #                    print "danach active_set" + str(active_set)
+
+            # update gradients, if w changed
+            if w_ii != w[m_pos]:
+
+                if use_cache:
+                    pass
+                    # gradient -= feature_inner_product[ii, :] * \
+#                    #                                    (w[ii] - w_ii)
+#                    daxpy(n_cached_features, -(w[ii] - w_ii),
+#                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
+
+            # update the maximum absolute coefficient update
+            d_w_ii = fabs(w[m_pos] - w_ii)
+            if d_w_ii > d_w_max:
+                d_w_max = d_w_ii
+
+            if fabs(w[m_pos]) > w_max:
+                w_max = fabs(w[m_pos])
 
 
         if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
