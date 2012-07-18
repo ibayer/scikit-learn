@@ -221,11 +221,12 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
         if over_all:
             print "-- iter over_all"
             iter_range = np.arange(n_features, dtype=np.int32)
-
+            print "w " + str(w)
             over_all = False
         else:
             print "-- iter active_features"
             iter_range = np.arange(n_active_features, dtype=np.int32)
+            print "w " + str(w)
 
         for ii in iter_range:  # Loop over coordinates
 
@@ -247,7 +248,7 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 #            is_cached = m_pos < n_cached_features
             is_active = w_ii != 0#m_pos < n_active_features
 
-            if True:# is_cached:#not is_active or over_all:
+            if True:# not is_cached:#not is_active or over_all:
                 #tmp_feature_inner_product = np.dot(X[:, ii], X)
                 #gradient[ii] = Xy[ii] - \
                 #         np.dot(tmp_feature_inner_product, w)
@@ -255,11 +256,12 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                           1, &X[0,0], n_samples, &X[0,org_pos],
                           1, 0, &tmp_feature_inner_product[0], 1)
                 tmp_feature_inner_product = tmp_feature_inner_product[track_pos]
-                feature_inner_product[:, m_pos] = tmp_feature_inner_product
+                feature_inner_product[:, org_pos] = tmp_feature_inner_product
                 n_cached_features += 1
                 gradient[m_pos] = Xy[org_pos] - \
                         ddot(n_features, &tmp_feature_inner_product[0],1 , &w[0], 1)
 
+            print "gradient[m_pos]" + str(gradient[m_pos])
             tmp = gradient[m_pos] + w_ii * norm_cols_X[org_pos]
 
             if positive and tmp < 0:
@@ -270,15 +272,12 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
 
             # add to active-set
             if w[m_pos] != 0 and not is_active:
-#                print "davor track_pos" + str(active_set)
-#                print "add pos: " + str(m_pos)
-#                print " org_pos: " + str(org_pos)
-#                print "w " + str(w)
-#                print "only active" + str(active_set[0:n_active_features])
-#                print  "n_active_features=" + str(n_active_features)
-                i_tmp = track_pos[n_active_features]
-                track_pos[n_active_features] = track_pos[m_pos]
-                track_pos[m_pos] = i_tmp
+                print "davor track_pos" + str(track_pos)
+                print "add pos: " + str(m_pos)
+                print " org_pos: " + str(org_pos)
+                print "w " + str(w)
+                print "only active" + str(track_pos[0:n_active_features])
+                print  "n_active_features=" + str(n_active_features)
 
                 tmp = w[n_active_features]
                 w[n_active_features] = w[m_pos]
@@ -292,22 +291,22 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                 feature_inner_product[:, n_active_features] = feature_inner_product[:, m_pos]
                 feature_inner_product[:, m_pos] = tmp_feature_inner_product
 
+                i_tmp = track_pos[n_active_features]
+                track_pos[n_active_features] = track_pos[m_pos]
+                track_pos[m_pos] = i_tmp
 
+                m_pos = n_active_features
                 n_active_features += 1
 
 
             # remove from active_set
             if w[m_pos] == 0 and is_active:
-#                    print "davor active_set" + str(active_set)
-#                    print "remove pos: " + str(m_pos)
-#                    print " org_pos: " + str(org_pos)
-#                    print "w " + str(w)
-#                    print "only active" + str(active_set[0:n_active_features])
-#                    print  "n_active_features=" + str(n_active_features)
-                    i_tmp = track_pos[m_pos]
-                    track_pos[m_pos] = track_pos[n_active_features - 1]
-                    track_pos[n_active_features - 1] = i_tmp
-
+                    print "davor active_set" + str(track_pos)
+                    print "remove pos: " + str(m_pos)
+                    print " org_pos: " + str(org_pos)
+                    print "w " + str(w)
+                    print "only active" + str(track_pos[0:n_active_features])
+                    print  "n_active_features=" + str(n_active_features)
 
                     w[m_pos] = w[n_active_features - 1]
                     w[n_active_features - 1] = 0
@@ -320,17 +319,23 @@ def enet_coordinate_descent(np.ndarray[DOUBLE, ndim=1] w,
                     feature_inner_product[:, m_pos] = feature_inner_product[:, n_active_features -1]
                     feature_inner_product[:, n_active_features -1] = tmp_feature_inner_product
 
+                    i_tmp = track_pos[m_pos]
+                    track_pos[m_pos] = track_pos[n_active_features - 1]
+                    track_pos[n_active_features - 1] = i_tmp
+
+                    m_pos = n_active_features -1
                     n_active_features -= 1
 
 
             # update gradients, if w changed
             if w_ii != w[m_pos]:
-
+                print "w changed"
                 if n_active_features > 0:
                     # gradient -= feature_inner_product[ii, :] * \
 #                    #                                    (w[ii] - w_ii)
-                    daxpy(n_active_features, -(w[ii] - w_ii),
-                          &feature_inner_product[m_pos, 0], 1, &gradient[0], 1)
+                    daxpy(n_active_features, -(w[m_pos] - w_ii),
+                          &feature_inner_product[org_pos, 0], 1, &gradient[0], 1)
+                    print "gradient update " + str(gradient)
 
             # update the maximum absolute coefficient update
             d_w_ii = fabs(w[m_pos] - w_ii)
